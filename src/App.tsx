@@ -1,9 +1,8 @@
-import { useState } from "react";
-import { AgGridReact } from "ag-grid-react";
+import { useState, useMemo } from "react";
 
 import "ag-grid-community/styles/ag-grid.css";
-import "ag-grid-community/styles/ag-theme-quartz.css";
-import { StyledInput, StyledSelect } from "./styles";
+import "ag-grid-community/styles/ag-theme-material.css";
+import { StyledInput, StyledSelect, StyledGrid } from "./styles";
 import rowData from "./data.json";
 
 type Row = {
@@ -18,57 +17,71 @@ function App() {
   const [search, setSearch] = useState<string>("");
   const [selectedRowID, setSelectedRowID] = useState(false);
 
-  // filtering should happen from the values in rowData, use the option to filter the desired column based on the user search.
-  // colDefs should be dynamic, same work you do to the options can be done to it.
-  // to style the input, you can just pass a prop similar
-
   const columnDefs = [
-    { field: "id" },
-    { field: "first_name" },
-    { field: "last_name", onCellClicked: (e) => console.log("here", e) },
+    {
+      field: "id",
+      headerName: "ID",
+    },
+    {
+      field: "first_name",
+      headerName: "First Name",
+    },
+    {
+      field: "last_name",
+      headerName: "Last Name",
+    },
     {
       field: "ip_address",
-      cellRenderer: (params) => {
-        const currentNodeId = params.node.id;
-        if (false) {
-          // in here you will check if you want to render the ip address or not.
+      headerName: "IP Address",
+      cellRenderer: (params: any) => {
+        // replace false with the selectedRowID boolean, which is toggled through the use of onCellClicked
+        if (selectedRowID) {
           return params.value;
         }
         return "";
       },
-      onCellClicked: (params) => {
-        const currentNodeId = params.node.id;
-        console.log("current cell clicked", currentNodeId);
-        // setSelectedRowID();
+      onCellClicked: () => {
+        setSelectedRowID(!selectedRowID);
       },
     },
-    { field: "balance", valueFormatter: (p) => "$" + p.value }, // in here you will finish formatting the balance,
-  ] as const;
+    {
+      field: "balance",
+      headerName: "Balance",
+      valueFormatter: (p: any) => {
+        // Using a regular expression, format the balance as a currency rather than a simple integer
+        return (
+          "$" +
+          Number(p.value)
+            .toFixed(2)
+            .replace(/\B(?=(\d{3})+(?!\d))/g, ",")
+        );
+      },
+    },
+  ] as const; // since these fields are declared as read-only, ag grid will throw an error as colDefs likes the definitions to be mutable
 
   const [selectedOption, setSelectedOption] =
     useState<(typeof columnDefs)[number]["field"]>("id");
 
   const options = () => {
-    const opt: {
-      label: string;
-      value: string;
-    }[] = [];
-
-    rowData.map((row: Row) => {
-      return Object.entries(row).map((e) => {
-        const [label] = e;
-
-        // filter the options to not have duplicate values
-
-        opt.push({
-          label,
-          value: label,
-        });
+    const opt: { label: string; value: string }[] = [];
+    // Iterate over columnDefs as a easy fix to repeating fields for the dropdown filter
+    columnDefs.forEach((column) => {
+      opt.push({
+        label: column.headerName,
+        value: column.field,
       });
     });
-
     return opt;
   };
+
+  // addition which implements a search feature that filters the grid data
+  // based on user input
+  const filteredData = useMemo(() => {
+    return rowData.filter((row) => {
+      const fieldValue = row[selectedOption].toString().toLowerCase();
+      return fieldValue.includes(search.toLowerCase());
+    });
+  }, [search, selectedOption, rowData]);
 
   const defaultColDef = {
     flex: 1,
@@ -76,7 +89,7 @@ function App() {
 
   return (
     <div
-      className="ag-theme-quartz"
+      className="ag-theme-material"
       style={{
         height: 500,
       }}
@@ -85,6 +98,7 @@ function App() {
         $yourProp={true}
         value={search}
         onChange={(e) => setSearch(e.target.value)}
+        placeholder="Search..."
       />
       <StyledSelect
         options={options()}
@@ -93,7 +107,11 @@ function App() {
           setSelectedOption(e as (typeof columnDefs)[number]["field"])
         }
       />
-      <AgGridReact defaultColDef={defaultColDef} rowData={[]} columnDefs={[]} />
+      <StyledGrid
+        defaultColDef={defaultColDef}
+        rowData={filteredData}
+        columnDefs={columnDefs}
+      />
     </div>
   );
 }
